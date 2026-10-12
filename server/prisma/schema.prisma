@@ -1,0 +1,219 @@
+// Prisma Schema for ProjectFlow Collaborative Agile Simulator
+// Supports seamless local development with SQLite and production deployment with PostgreSQL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  avatarUrl    String?
+  role         String   @default("DEVELOPER") // ADMIN, PROJECT_MANAGER, DEVELOPER, TESTER
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  workspaceMemberships WorkspaceMembership[]
+  projectMemberships   ProjectMembership[]
+  managedProjects      Project[]             @relation("ProjectManager")
+  reportedStories      UserStory[]           @relation("StoryReporter")
+  assignedStories      UserStory[]           @relation("StoryAssignee")
+  reportedTasks        Task[]                @relation("TaskReporter")
+  assignedTasks        Task[]                @relation("TaskAssignee")
+  reportedIssues       Issue[]               @relation("IssueReporter")
+  assignedIssues       Issue[]               @relation("IssueAssignee")
+  comments             Comment[]
+  activities           Activity[]
+  notifications        Notification[]
+}
+
+model Workspace {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  members  WorkspaceMembership[]
+  projects Project[]
+}
+
+model WorkspaceMembership {
+  id          String   @id @default(uuid())
+  workspaceId String
+  userId      String
+  role        String   @default("DEVELOPER")
+  joinedAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model Project {
+  id          String    @id @default(uuid())
+  key         String    @unique // e.g. OFD
+  name        String
+  description String?
+  status      String    @default("ACTIVE") // PLANNING, ACTIVE, COMPLETED, ARCHIVED
+  startDate   DateTime?
+  targetDate  DateTime?
+  workspaceId String
+  managerId   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relationships
+  workspace  Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  manager    User?               @relation("ProjectManager", fields: [managerId], references: [id], onDelete: SetNull)
+  members    ProjectMembership[]
+  userStories UserStory[]
+  tasks      Task[]
+  issues     Issue[]
+  activities Activity[]
+}
+
+model ProjectMembership {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  role      String   @default("DEVELOPER")
+  joinedAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model UserStory {
+  id                 String   @id @default(uuid())
+  storyKey           String   @unique // e.g. OFD-US01
+  title              String
+  description        String?
+  userStatement      String // "As a [role], I want [action], so that [outcome]"
+  acceptanceCriteria String // Serialized JSON array of strings
+  priority           String   @default("MEDIUM") // CRITICAL, HIGH, MEDIUM, LOW
+  storyPoints        Int      @default(3) // 1, 2, 3, 5, 8, 13
+  status             String   @default("BACKLOG") // BACKLOG, READY, IN_PROGRESS, IN_REVIEW, DONE
+  projectId          String
+  reporterId         String
+  assigneeId         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relationships
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reporter User      @relation("StoryReporter", fields: [reporterId], references: [id])
+  assignee User?     @relation("StoryAssignee", fields: [assigneeId], references: [id])
+  tasks    Task[]
+  comments Comment[]
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  taskKey     String    @unique // e.g. OFD-101
+  title       String
+  description String?
+  status      String    @default("TODO") // TODO, IN_PROGRESS, TESTING, DONE
+  priority    String    @default("MEDIUM") // CRITICAL, HIGH, MEDIUM, LOW
+  storyPoints Int?      @default(2)
+  dueDate     DateTime?
+  order       Int       @default(0) // Kanban column vertical position
+  projectId   String
+  userStoryId String?
+  assigneeId  String?
+  reporterId  String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relationships
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userStory UserStory? @relation(fields: [userStoryId], references: [id], onDelete: SetNull)
+  assignee  User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  reporter  User       @relation("TaskReporter", fields: [reporterId], references: [id])
+  issues    Issue[]
+  comments  Comment[]
+}
+
+model Issue {
+  id                 String   @id @default(uuid())
+  issueKey           String   @unique // e.g. OFD-ISS-101
+  title              String
+  description        String
+  type               String   @default("BUG") // BUG, TASK, IMPROVEMENT, FEATURE
+  priority           String   @default("MEDIUM") // CRITICAL, HIGH, MEDIUM, LOW
+  status             String   @default("OPEN") // OPEN, IN_PROGRESS, FIXED, CLOSED
+  reproductionSteps  String?
+  expectedBehavior   String?
+  actualBehavior     String?
+  projectId          String
+  taskId             String?
+  reporterId         String
+  assigneeId         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relationships
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task     Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  reporter User      @relation("IssueReporter", fields: [reporterId], references: [id])
+  assignee User?     @relation("IssueAssignee", fields: [assigneeId], references: [id])
+  comments Comment[]
+}
+
+model Comment {
+  id          String   @id @default(uuid())
+  content     String
+  authorId    String
+  taskId      String?
+  userStoryId String?
+  issueId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  task      Task?      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userStory UserStory? @relation(fields: [userStoryId], references: [id], onDelete: Cascade)
+  issue     Issue?     @relation(fields: [issueId], references: [id], onDelete: Cascade)
+}
+
+model Activity {
+  id         String   @id @default(uuid())
+  actionType String // TASK_CREATED, TASK_STATUS_CHANGED, TASK_ASSIGNED, STORY_CREATED, ISSUE_REPORTED, ISSUE_STATUS_CHANGED, COMMENT_ADDED
+  details    String
+  entityType String // TASK, STORY, ISSUE, PROJECT
+  entityId   String
+  userId     String
+  projectId  String?
+  createdAt  DateTime @default(now())
+
+  // Relationships
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  userId    String
+  createdAt DateTime @default(now())
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

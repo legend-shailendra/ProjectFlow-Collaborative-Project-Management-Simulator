@@ -1,0 +1,38 @@
+{
+  "name": "projectflow",
+  "version": "1.0.0",
+  "description": "Collaborative Project Management Simulator - Agile, Kanban, Stories, Issues, Analytics",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspace=server && npm install --workspace=client",
+    "dev:server": "npm --workspace=server run dev",
+    "dev:client": "npm --workspace=client run dev",
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,magenta\" \"npm --workspace=server run dev\" \"npm --workspace=client run dev\"",
+    "build": "npm --workspace=server run build && npm --workspace=client run build",
+    "db:migrate": "npm --workspace=server run prisma:migrate",
+    "db:push": "npm --workspace=server run prisma:push",
+    "db:postgres:push": "npm --workspace=server run prisma:postgres:push",
+    "db:postgres:generate": "npm --workspace=server run prisma:postgres:generate",
+    "db:seed": "npm --workspace=server run prisma:seed",
+    "db:studio": "npm --workspace=server run prisma:studio",
+    "test": "npm --workspace=server run test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "projectflow",
+    "agile",
+    "kanban",
+    "scrum",
+    "user-stories",
+    "issue-tracking",
+    "collaborative-simulator"
+  ],
+  "author": "ProjectFlow Team",
+  "license": "ISC"
+}
